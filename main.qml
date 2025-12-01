@@ -5,40 +5,59 @@ import org.qfield 1.0
 import org.qgis 1.0
 import Theme 1.0
 
+// Componentes UI internos de QField (igual que hace el reloader)
+import "qrc:/qml" as QFieldItems
+
+// Capa JS que envuelve a qrcode.js
 import "qrcode_qml.js" as QRLib
 
 Item {
     id: pluginRoot
 
-    // QField inyecta 'iface' en el contexto del plugin
-    // Lo usamos para añadir el botón a la toolbar
+    // Accesos básicos
     property var mainWindow: iface.mainWindow()
-    property var dashBoard: iface.findItemByObjectName("dashBoard")
+    property var mapCanvas: iface.mapCanvas()
 
-    // Estado básico para el QR
+    // Estado QR
     property string codeText: ""
     property var qrMatrix: []
     property int qrSize: 0
 
-    // Cuando se carga el plugin, añadimos el botón a la barra de herramientas
+    //
+    // BOTÓN PRINCIPAL EN LA TOOLBAR (basado en el reloader)
+    //
+    QFieldItems.ToolButton {
+        id: qrButton
+        objectName: "agraeQrLabelButton"
+        iconSource: Theme.getThemeIcon("mIconBarcode")  // si no existe, QField usa el icono por defecto
+
+        // Click normal → abre el diálogo para generar etiqueta
+        onClicked: {
+            qrDialog.open()
+        }
+
+        // Pulsación larga → solo mostrar un toast informativo (como hace el reloader)
+        onPressAndHold: {
+            iface.mainWindow().displayToast(
+                qsTr("aGrae QR Label: genera un QR y una etiqueta PNG lista para imprimir.")
+            )
+        }
+    }
+
+    // Al cargar el plugin, añadimos el botón a la toolbar de plugins
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(qrButton)
     }
 
-    // Botón de la barra de herramientas de QField
-    ToolButton {
-        id: qrButton
-        icon.source: Theme.getThemeIcon("mIconBarcode")
-        onClicked: qrDialog.open()
-    }
-
-    // Diálogo principal para escribir código, generar QR y guardar PNG
+    //
+    // DIÁLOGO PARA GENERAR / GUARDAR EL CÓDIGO QR
+    //
     Dialog {
         id: qrDialog
         modal: true
         title: qsTr("Imprimir etiqueta QR")
 
-        // Centrado simple (QField suele tener parent ancho/alto)
+        // Centrado básico
         x: (parent ? parent.width : 400) / 2 - width / 2
         y: (parent ? parent.height : 400) / 2 - height / 2
 
@@ -63,7 +82,6 @@ Item {
                 text: qsTr("Generar QR")
                 enabled: pluginRoot.codeText.length > 0
                 onClicked: {
-                    // Generar matriz QR usando la capa JS
                     var res = QRLib.generateMatrixForQml(pluginRoot.codeText)
                     pluginRoot.qrMatrix = res.matrix
                     pluginRoot.qrSize = res.size
@@ -71,7 +89,7 @@ Item {
                 }
             }
 
-            // Contenedor para el QR (Canvas), útil para grabToImage()
+            // Contenedor para el QR (se usará para grabToImage)
             Item {
                 id: qrContainer
                 width: 240
@@ -116,7 +134,6 @@ Item {
                 text: qsTr("Guardar PNG y abrir para imprimir")
                 enabled: pluginRoot.qrSize > 0
                 onClicked: {
-                    // Capturamos el contenedor del QR como imagen
                     qrContainer.grabToImage(function(result) {
                         if (!result || !result.saveToFile)
                             return
@@ -126,7 +143,6 @@ Item {
                         if (typeof qgisProject !== "undefined" && qgisProject.homePath) {
                             dir = qgisProject.homePath + "/qr_labels"
                         } else {
-                            // Ruta de respaldo si no hay homePath
                             dir = "/sdcard/QField/qr_labels"
                         }
 
@@ -142,15 +158,21 @@ Item {
                         if (ok) {
                             // Abrir con app externa (Phomemo, galería, etc.)
                             Qt.openUrlExternally("file://" + filename)
+                            iface.mainWindow().displayToast(
+                                qsTr("Etiqueta guardada en %1").arg(filename)
+                            )
                         } else {
                             console.log("No se pudo guardar la imagen QR en " + filename)
+                            iface.mainWindow().displayToast(
+                                qsTr("Error al guardar la etiqueta.")
+                            )
                         }
                     })
                 }
             }
 
             Text {
-                text: qsTr("La imagen se guarda en /qr_labels dentro de la carpeta del proyecto (o /sdcard/QField).")
+                text: qsTr("La imagen se guarda en /qr_labels dentro de la carpeta del proyecto (o /sdcard/QField/qr_labels).")
                 wrapMode: Text.WordWrap
                 font.pointSize: 10
                 opacity: 0.7
