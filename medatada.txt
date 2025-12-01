@@ -1,0 +1,7 @@
+[general]
+name=aGrae QR Label
+description=Generar y guardar etiquetas QR desde QField, listas para imprimir con apps externas.
+author=aGrae
+version=0.1
+icon=
+homepage=https://agrae.solutions
