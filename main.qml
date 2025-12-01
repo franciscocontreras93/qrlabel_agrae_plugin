@@ -30,10 +30,22 @@ Item {
     // Botón que aparece en la barra de herramientas de QField
     ToolButton {
         id: qrButton
-        icon.source: Theme.getThemeIcon("mIconBarcode") // si falla, solo no tendrá icono
-        tooltip: qsTr("Generar etiqueta QR")
-        onClicked: qrDialog.open()
+        icon.source: Theme.getThemeIcon("mIconBarcode")
+
+        onPressed: tooltipText.visible = true
+        onReleased: tooltipText.visible = false
     }
+
+    Text {
+        id: tooltipText
+        text: "Generar etiqueta QR"
+        visible: false
+        anchors.top: qrButton.bottom
+        anchors.horizontalCenter: qrButton.horizontalCenter
+        color: "white"
+        background: Rectangle { color: "black"; radius: 4 }
+    }
+
 
     // Diálogo principal del plugin
     Dialog {
