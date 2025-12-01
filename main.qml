@@ -1,58 +1,44 @@
-// main.qml
-import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick 2.12
+import QtQuick.Controls 2.5
 
 import org.qfield 1.0
 import org.qgis 1.0
 import Theme 1.0
 
-// Utilidades de fichero (en QField suelen estar disponibles como FileUtils)
 import "qrcode_qml.js" as QRLib
 
 Item {
     id: pluginRoot
 
-    // QField nos inyecta "iface" en el contexto del plugin
-    // (estilo a los ejemplos oficiales de QField)
+    // QField inyecta 'iface' en el contexto del plugin
+    // Lo usamos para añadir el botón a la toolbar
     property var mainWindow: iface.mainWindow()
     property var dashBoard: iface.findItemByObjectName("dashBoard")
 
-    // Estado básico
+    // Estado básico para el QR
     property string codeText: ""
     property var qrMatrix: []
     property int qrSize: 0
 
-    // Botón en la toolbar de plugins
+    // Cuando se carga el plugin, añadimos el botón a la barra de herramientas
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(qrButton)
     }
 
-    // Botón que aparece en la barra de herramientas de QField
+    // Botón de la barra de herramientas de QField
     ToolButton {
         id: qrButton
         icon.source: Theme.getThemeIcon("mIconBarcode")
-
-        onPressed: tooltipText.visible = true
-        onReleased: tooltipText.visible = false
+        onClicked: qrDialog.open()
     }
 
-    Text {
-        id: tooltipText
-        text: "Generar etiqueta QR"
-        visible: false
-        anchors.top: qrButton.bottom
-        anchors.horizontalCenter: qrButton.horizontalCenter
-        color: "white"
-        background: Rectangle { color: "black"; radius: 4 }
-    }
-
-
-    // Diálogo principal del plugin
+    // Diálogo principal para escribir código, generar QR y guardar PNG
     Dialog {
         id: qrDialog
         modal: true
         title: qsTr("Imprimir etiqueta QR")
-        standardButtons: Dialog.Close
+
+        // Centrado simple (QField suele tener parent ancho/alto)
         x: (parent ? parent.width : 400) / 2 - width / 2
         y: (parent ? parent.height : 400) / 2 - height / 2
 
@@ -69,14 +55,15 @@ Item {
                 id: codeField
                 text: pluginRoot.codeText
                 placeholderText: qsTr("Ej: C025-1234")
-                onTextChanged: pluginRoot.codeText = text
                 width: 260
+                onTextChanged: pluginRoot.codeText = text
             }
 
             Button {
                 text: qsTr("Generar QR")
                 enabled: pluginRoot.codeText.length > 0
                 onClicked: {
+                    // Generar matriz QR usando la capa JS
                     var res = QRLib.generateMatrixForQml(pluginRoot.codeText)
                     pluginRoot.qrMatrix = res.matrix
                     pluginRoot.qrSize = res.size
@@ -84,7 +71,7 @@ Item {
                 }
             }
 
-            // Contenedor del QR (nos servirá para grabToImage)
+            // Contenedor para el QR (Canvas), útil para grabToImage()
             Item {
                 id: qrContainer
                 width: 240
@@ -129,15 +116,21 @@ Item {
                 text: qsTr("Guardar PNG y abrir para imprimir")
                 enabled: pluginRoot.qrSize > 0
                 onClicked: {
+                    // Capturamos el contenedor del QR como imagen
                     qrContainer.grabToImage(function(result) {
                         if (!result || !result.saveToFile)
                             return
 
-                        // Carpeta dentro del "home" del proyecto
-                        var dir = qgisProject.homePath + "/qr_labels"
+                        // Carpeta donde guardar las etiquetas
+                        var dir
+                        if (typeof qgisProject !== "undefined" && qgisProject.homePath) {
+                            dir = qgisProject.homePath + "/qr_labels"
+                        } else {
+                            // Ruta de respaldo si no hay homePath
+                            dir = "/sdcard/QField/qr_labels"
+                        }
 
-                        // Algunos builds de QField exponen FileUtils en global;
-                        // si no, sustituye por tu propia ruta/carpeta.
+                        // Crear carpeta si FileUtils existe
                         if (typeof FileUtils !== "undefined" && FileUtils.mkpath) {
                             FileUtils.mkpath(dir)
                         }
@@ -157,7 +150,7 @@ Item {
             }
 
             Text {
-                text: qsTr("La imagen se guarda en la carpeta del proyecto (/qr_labels).")
+                text: qsTr("La imagen se guarda en /qr_labels dentro de la carpeta del proyecto (o /sdcard/QField).")
                 wrapMode: Text.WordWrap
                 font.pointSize: 10
                 opacity: 0.7
